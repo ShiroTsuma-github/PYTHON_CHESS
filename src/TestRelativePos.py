@@ -1,4 +1,3 @@
-from typing import Type
 import pygame
 from random import randint
 
@@ -58,14 +57,21 @@ class Square(pygame.sprite.Sprite):
         else:
             return self.rect.x, self.rect.y
 
+    def update(self, events):
+        for event in events:
+            if event.type == pygame.MOUSEBUTTONUP:
+                if self.rect.collidepoint(event.pos):
+                    self.image.fill("purple")
+
     def move(self, x, y):
         self.rect.x += x
         self.rect.y += y
 
     def bound_move(self, x, y):
-        if self.parent is not None:
-            max_x = self.parent.rect.width - self.rect.width
-            max_y = self.parent.rect.height - self.rect.height
+        if self.parent is None:
+            raise Exception("Cannot bound move without parent")
+        max_x = self.parent.rect.width - self.rect.width
+        max_y = self.parent.rect.height - self.rect.height
         self.rect.x += x
         self.rect.y += y
         current_x, current_y = self.get_relative_to_parent()
@@ -73,20 +79,45 @@ class Square(pygame.sprite.Sprite):
         self.rect.y = self.clamp(current_y, 0, max_y)
         self.set_relative_to_parent()
 
+    def stick(self, x, y):
+        if self.parent is None:
+            raise Exception("Cannot stick without parent")
+        self.rect.x = self.parent.rect.x + x
+        self.rect.y = self.parent.rect.y + y
+
+    def bound_stick(self, x, y):
+        if self.parent is None:
+            raise Exception("Cannot bound stick without parent")
+        max_x = self.parent.rect.width - self.rect.width
+        max_y = self.parent.rect.height - self.rect.height
+        self.rect.x = self.parent.rect.x + self.clamp(x, 0, max_x)
+        self.rect.y = self.parent.rect.y + self.clamp(y, 0, max_y)
+
+    def place(self, x, y):
+        self.rect.x = x
+        self.rect.y = y
+
 
 all_sprites = pygame.sprite.Group()
 parent = Square("red", 500, 500, 100, 100, None)
-child = Square("blue", 50, 50, 0, 0, parent)
-child2 = Square("green", 50, 50, 50, 0, parent)
+child = Square("blue", 400, 400, 0, 0, parent)
+child2 = Square("green", 300, 300, 50, 0, child)
+child3 = Square("yellow", 200, 200, 50, 0, child2)
+child4 = Square("orange", 100, 100, 50, 0, child3)
+child5 = Square("pink", 50, 50, 50, 0, child4)
 all_sprites.add(parent)
 all_sprites.add(child)
 all_sprites.add(child2)
+all_sprites.add(child3)
+all_sprites.add(child4)
+all_sprites.add(child5)
 
 
 while running:
     # poll for events
     # pygame.QUIT event means the user clicked X to close your window
-    for event in pygame.event.get():
+    events = pygame.event.get()
+    for event in events:
         if event.type == pygame.QUIT:
             running = False
 
@@ -94,7 +125,11 @@ while running:
     screen.fill("purple")
     all_sprites.draw(screen)
     child.bound_move(randint(-3, 3), randint(-3, 3))
-    child2.bound_move(randint(-3, 3), randint(-3, 3))
+    child2.bound_move(randint(-3, 5), randint(-3, 3))
+    child3.bound_move(randint(-3, 3), randint(-3, 3))
+    child4.bound_move(randint(-3, 3), randint(-3, 3))
+    child5.place(300, 10)
+    all_sprites.update(events)
 
     # RENDER YOUR GAME HERE
 
