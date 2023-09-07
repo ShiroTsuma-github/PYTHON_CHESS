@@ -20,6 +20,7 @@ class Square(pygame.sprite.Sprite):
         self.parent = parent
         self.rect.x = x
         self.rect.y = y
+        self.setting_control = {}
         self.offset_x, self.offset_y = self.calc_relation_point(relation_point)
         self.set_relative_to_parent()
 
@@ -132,6 +133,16 @@ class Square(pygame.sprite.Sprite):
         self.rect.x = self.parent.rect.x + self.clamp(x + self.offset_x, 0, max_x)
         self.rect.y = self.parent.rect.y + self.clamp(y + self.offset_y, 0, max_y)
 
+    def relative_place(self, x, y):
+        if self.parent is None:
+            raise Exception("Cannot relative place without parent")
+        if self.setting_control.get('parent_rel_pos_x', None) is None:
+            self.setting_control['parent_rel_pos_x'] = self.parent.rect.x
+        if self.setting_control.get('parent_rel_pos_y', None) is None:
+            self.setting_control['parent_rel_pos_y'] = self.parent.rect.y
+        self.rect.x = self.setting_control.get('parent_rel_pos_x') + self.offset_x
+        self.rect.y = self.setting_control.get('parent_rel_pos_y') + y + self.offset_y
+
     def place(self, x, y):
         self.rect.x = x
         self.rect.y = y
@@ -143,13 +154,13 @@ child = Square("blue", 400, 400, 0, 0, parent, relation_point='NE')
 child2 = Square("green", 300, 300, 50, 0, child)
 child3 = Square("yellow", 200, 150, 50, 0, child2)
 child4 = Square("orange", 100, 100, 50, 0, child3, image='resources/images/enemy.png', relation_point='E')
-# child5 = Square("pink", 50, 50, 50, 0, child4, )
+child5 = Square("pink", 50, 50, 50, 0, child4, relation_point='E')
 all_sprites.add(parent)
 all_sprites.add(child)
 all_sprites.add(child2)
 all_sprites.add(child3)
 all_sprites.add(child4)
-# all_sprites.add(child5)
+all_sprites.add(child5)
 
 
 while running:
@@ -168,7 +179,7 @@ while running:
     child2.bound_move(randint(-3, 5), randint(-3, 3))
     child3.bound_move(randint(-3, 3), randint(-3, 3))
     child4.bound_stick(0, 0)
-    # child5.place(300, 10)
+    child5.relative_place(0, 0)
     all_sprites.update(events)
 
     # RENDER YOUR GAME HERE
