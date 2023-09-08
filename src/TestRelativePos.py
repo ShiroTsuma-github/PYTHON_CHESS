@@ -1,5 +1,6 @@
 import pygame
 from random import randint
+from math import floor, ceil
 
 screen = pygame.display.set_mode((1280, 720))
 clock = pygame.time.Clock()
@@ -72,7 +73,8 @@ class Square(pygame.sprite.Sprite):
         self.rect.y = self.initial_offsets[1]
         self.offset_x, self.offset_y = self.calc_parent_relation(self.relations[0], self.relations[1])
         self.set_relative_to_parent()
-        self.setting_control = {}
+        self.setting_control.pop('parent_rel_pos_x', None)
+        self.setting_control.pop('parent_rel_pos_y', None)
 
     def change_relations(self, parent_relation, children_relation):
         self.relations = (parent_relation, children_relation)
@@ -130,6 +132,48 @@ class Square(pygame.sprite.Sprite):
         self.rect.x += x
         self.rect.y += y
 
+    def __dynamic_remainder(self):
+        # NOTE: This is pretty bad way to do this, but it solves the problem
+        #      of pixel rounding and difference between actual and expected final position
+        #      It also prevents visual stutter, when object snaps to final position
+        # NOTE: It also makes it possible, to have very big timespan
+        ret_x = 0
+        ret_y = 0
+        if self.setting_control.get('move_remainders', None) is None:
+            self.setting_control['move_remainders'] = {'x': 0, 'y': 0}
+        self.setting_control['move_remainders']['x'] += self.setting_control.get('mov_diff_x')
+        self.setting_control['move_remainders']['y'] += self.setting_control.get('mov_diff_y')
+        if abs(self.setting_control.get('move_remainders')['x']) >= 1:
+            ret_x = self.setting_control.get('move_remainders')['x'] -\
+                self.setting_control.get('move_remainders')['x'] % 1
+        if abs(self.setting_control.get('move_remainders')['y']) >= 1:
+            ret_y = self.setting_control.get('move_remainders')['y'] -\
+                self.setting_control.get('move_remainders')['y'] % 1
+        self.setting_control['move_remainders']['x'] -= ret_x
+        self.setting_control['move_remainders']['y'] -= ret_y
+        return (
+            ret_x,
+            ret_y
+        )
+
+    def move_to(self, x, y, timespan=1):
+        if self.rect.x == x and self.rect.y == y:
+            return
+        if self.setting_control.get('move_invokes', None) is None:
+            self.setting_control['move_invokes'] = 0
+            self.setting_control['mov_diff_x'] = (x - self.rect.x) / timespan
+            self.setting_control['mov_diff_y'] = (y - self.rect.y) / timespan
+        # NOTE: For information, look at note in __dynamic_remainder
+        move_x, move_y = self.__dynamic_remainder()
+        self.rect.x += move_x
+        self.rect.y += move_y
+        self.setting_control['move_invokes'] += 1
+        if self.setting_control.get('move_invokes') >= timespan:
+            self.setting_control.pop('move_invokes', None)
+            self.setting_control.pop('move_remainders', None)
+            self.rect.x = x
+            self.rect.y = y
+
     def bound_move(self, x, y):
         if self.parent is None:
             raise Exception("Cannot bound move without parent")
@@ -167,7 +211,7 @@ class Square(pygame.sprite.Sprite):
             self.setting_control['parent_rel_pos_x'] = self.parent.rect.x
         if self.setting_control.get('parent_rel_pos_y', None) is None:
             self.setting_control['parent_rel_pos_y'] = self.parent.rect.y
-        self.rect.x = self.setting_control.get('parent_rel_pos_x') + self.offset_x
+        self.rect.x = self.setting_control.get('parent_rel_pos_x') + x + self.offset_x
         self.rect.y = self.setting_control.get('parent_rel_pos_y') + y + self.offset_y
 
     def place(self, x, y):
@@ -189,7 +233,7 @@ gen = next_relation()
 all_sprites = pygame.sprite.Group()
 parent = Square("red", 400, 400, 100, 100, None)
 parent2 = Square("green", 400, 400, 500, 100, None)
-child = Square("blue", 300, 300, 0, 0, parent, 'C', 'C')
+child = Square("blue", 300, 300, 0, 0, parent2, 'C', 'C')
 all_sprites.add(parent)
 all_sprites.add(parent2)
 all_sprites.add(child)
@@ -215,7 +259,8 @@ while running:
     # RENDER YOUR GAME HERE
     relation = next(gen)
     # child.change_relations(relation, relation)
-
+    parent2.move_to(400, 400, 1000)
+    child.bound_stick(0, 0)
     # flip() the display to put your work on screen
     pygame.display.flip()
 
