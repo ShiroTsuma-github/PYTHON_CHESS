@@ -12,16 +12,19 @@ class Square(pygame.sprite.Sprite):
                  width, height,
                  x, y,
                  parent: 'Square',
-                 relation_point='NW',
+                 parent_relation='NW',
+                 children_relation='NW',
                  image=None):
         pygame.sprite.Sprite.__init__(self)
         self.image = self.set_image(image, width, height, color)
         self.rect = self.image.get_rect()
         self.parent = parent
+        self.initial_offsets = (x, y)
+        self.relations = (parent_relation, children_relation)
         self.rect.x = x
         self.rect.y = y
         self.setting_control = {}
-        self.offset_x, self.offset_y = self.calc_relation_point(relation_point)
+        self.offset_x, self.offset_y = self.calc_parent_relation(parent_relation, children_relation)
         self.set_relative_to_parent()
 
     def set_image(self, image, width, height, color):
@@ -33,11 +36,11 @@ class Square(pygame.sprite.Sprite):
         result = pygame.transform.scale(result, (width, height))
         return result
 
-    def calc_relation_point(self, relation_point):
+    def calc_parent_relation(self, parent_relation, children_relation):
         if self.parent is None:
             offset_x, offset_y = 0, 0
             return offset_x, offset_y
-        coordinates: dict[str, tuple[int, int]] = {
+        parent_coordinates: dict[str, tuple[int, int]] = {
             'NW': (0, 0),
             'N': (self.parent.rect.width / 2, 0),
             'NE': (self.parent.rect.width, 0),
@@ -48,9 +51,33 @@ class Square(pygame.sprite.Sprite):
             'W': (0, self.parent.rect.height / 2),
             'C': (self.parent.rect.width / 2, self.parent.rect.height / 2),
         }
-        offset_x = coordinates.get(relation_point, 0)[0]
-        offset_y = coordinates.get(relation_point, 0)[1]
+        children_coordinates: dict[str, tuple[int, int]] = {
+            'NW': (0, 0),
+            'N': (self.rect.width / 2, 0),
+            'NE': (self.rect.width, 0),
+            'E': (self.rect.width, self.rect.height / 2),
+            'SE': (self.rect.width, self.rect.height),
+            'S': (self.rect.width / 2, self.rect.height),
+            'SW': (0, self.rect.height),
+            'W': (0, self.rect.height / 2),
+            'C': (self.rect.width / 2, self.rect.height / 2),
+        }
+        offset_x = parent_coordinates.get(parent_relation, 0)[0] - children_coordinates.get(children_relation, 0)[0]
+        offset_y = parent_coordinates.get(parent_relation, 0)[1] - children_coordinates.get(children_relation, 0)[1]
         return offset_x, offset_y
+
+    def change_parent(self, new_parent: 'Square'):
+        self.parent = new_parent
+        self.rect.x = self.initial_offsets[0]
+        self.rect.y = self.initial_offsets[1]
+        self.offset_x, self.offset_y = self.calc_parent_relation(self.relations[0], self.relations[1])
+        self.set_relative_to_parent()
+        self.setting_control = {}
+
+    def change_relations(self, parent_relation, children_relation):
+        self.relations = (parent_relation, children_relation)
+        self.offset_x, self.offset_y = self.calc_parent_relation(parent_relation, children_relation)
+        self.set_relative_to_parent()
 
     def clamp(self, n: int, min: int, max: int, _bool=False) -> int:
         if n < min:
@@ -125,7 +152,7 @@ class Square(pygame.sprite.Sprite):
         self.rect.x = self.parent.rect.x + x + self.offset_x
         self.rect.y = self.parent.rect.y + y + self.offset_y
 
-    def bound_stick(self, x, y, relation_point=None):
+    def bound_stick(self, x, y, parent_relation=None):
         if self.parent is None:
             raise Exception("Cannot bound stick without parent")
         max_x = self.parent.rect.width - self.rect.width
@@ -148,20 +175,24 @@ class Square(pygame.sprite.Sprite):
         self.rect.y = y
 
 
-all_sprites = pygame.sprite.Group()
-parent = Square("red", 500, 500, 100, 100, None)
-child = Square("blue", 400, 400, 0, 0, parent, relation_point='NE')
-child2 = Square("green", 300, 300, 50, 0, child)
-child3 = Square("yellow", 200, 150, 50, 0, child2)
-child4 = Square("orange", 100, 100, 50, 0, child3, image='resources/images/enemy.png', relation_point='E')
-child5 = Square("pink", 50, 50, 50, 0, child4, relation_point='E')
-all_sprites.add(parent)
-all_sprites.add(child)
-all_sprites.add(child2)
-all_sprites.add(child3)
-all_sprites.add(child4)
-all_sprites.add(child5)
+def next_relation():
+    relations = ('NW', 'N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'C')
+    pointer = 0
+    while True:
+        yield relations[pointer]
+        pointer += 1
+        if pointer >= len(relations):
+            pointer = 0
 
+gen = next_relation()
+
+all_sprites = pygame.sprite.Group()
+parent = Square("red", 400, 400, 100, 100, None)
+parent2 = Square("green", 400, 400, 500, 100, None)
+child = Square("blue", 300, 300, 0, 0, parent, 'C', 'C')
+all_sprites.add(parent)
+all_sprites.add(parent2)
+all_sprites.add(child)
 
 while running:
     # poll for events
@@ -176,13 +207,14 @@ while running:
     all_sprites.draw(screen)
     
     # child.bound_move(randint(-3, 3), randint(-3, 3))
-    child2.bound_move(randint(-3, 5), randint(-3, 3))
-    child3.bound_move(randint(-3, 3), randint(-3, 3))
-    child4.bound_stick(0, 0)
-    child5.relative_place(0, 0)
     all_sprites.update(events)
-
+    # if child.parent == parent:
+    #     child.change_parent(parent2)
+    # else:
+    #     child.change_parent(parent)
     # RENDER YOUR GAME HERE
+    relation = next(gen)
+    # child.change_relations(relation, relation)
 
     # flip() the display to put your work on screen
     pygame.display.flip()
